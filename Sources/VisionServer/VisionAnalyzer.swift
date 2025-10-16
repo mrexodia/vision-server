@@ -27,8 +27,8 @@ class VisionAnalyzer {
         let faceDetection = try detectFaces(in: cgImage)
         let barcodes = try detectBarcodes(in: cgImage)
         let objects = try classifyImage(cgImage)
-        let aesthetics = try? analyzeAesthetics(in: cgImage)
-        let saliency = try? analyzeSaliency(in: cgImage)
+        // Note: Aesthetics and saliency analysis removed as they were returning placeholder values
+        // These features require iOS 18.0+ or more complex implementation
 
         return AnalysisResponse.success(
             imageInfo: imageInfo,
@@ -36,8 +36,8 @@ class VisionAnalyzer {
             faceDetection: faceDetection,
             barcodes: barcodes,
             objects: objects,
-            imageAesthetics: aesthetics,
-            saliency: saliency
+            imageAesthetics: nil,
+            saliency: nil
         )
     }
 
@@ -140,59 +140,6 @@ class VisionAnalyzer {
             .map { $0.toResult() }
     }
 
-    // MARK: - Image Aesthetics
-
-    private func analyzeAesthetics(in image: CGImage) throws -> AestheticsResult {
-        let request = VNGenerateImageFeaturePrintRequest()
-
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([request])
-
-        // Note: Actual aesthetics scoring requires iOS 18.0+
-        // For now, we'll return a placeholder based on image analysis
-        return AestheticsResult(
-            overallScore: 0.5, // Placeholder
-            isUtility: nil
-        )
-    }
-
-    // MARK: - Saliency Analysis
-
-    private func analyzeSaliency(in image: CGImage) throws -> SaliencyResult {
-        // Object-based saliency
-        let objectRequest = VNGenerateObjectnessBasedSaliencyImageRequest()
-
-        // Attention-based saliency
-        let attentionRequest = VNGenerateAttentionBasedSaliencyImageRequest()
-
-        let handler = VNImageRequestHandler(cgImage: image, options: [:])
-        try handler.perform([objectRequest, attentionRequest])
-
-        var salientObjects: [SalientObject]? = nil
-
-        if let objectObservations = objectRequest.results as? [VNSaliencyImageObservation] {
-            salientObjects = objectObservations.first?.salientObjects?.map { obj in
-                SalientObject(
-                    boundingBox: BoundingBox(from: obj.boundingBox),
-                    confidence: obj.confidence
-                )
-            }
-        }
-
-        var attentionRegion: SalientRegion? = nil
-
-        if let attentionObservations = attentionRequest.results as? [VNSaliencyImageObservation] {
-            if let first = attentionObservations.first {
-                // Calculate overall attention score (simplified)
-                attentionRegion = SalientRegion(score: 0.7) // Placeholder
-            }
-        }
-
-        return SaliencyResult(
-            objectBased: salientObjects,
-            attentionBased: attentionRegion
-        )
-    }
 
     // MARK: - Helper Methods
 

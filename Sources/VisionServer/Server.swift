@@ -6,10 +6,16 @@ import Foundation
 final class VisionServerHandler: ChannelInboundHandler {
     typealias InboundIn = HTTPServerRequestPart
     typealias OutboundOut = HTTPServerResponsePart
-    
+
     private var requestHead: HTTPRequestHead?
     private var bodyBuffer: ByteBuffer?
     private let analyzer = VisionAnalyzer()
+
+    // Static date formatter for better performance
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        return formatter
+    }()
     
     func channelRead(context: ChannelHandlerContext, data: NIOAny) {
         let reqPart = self.unwrapInboundIn(data)
@@ -47,58 +53,19 @@ final class VisionServerHandler: ChannelInboundHandler {
     }
     
     private func handleRoot(context: ChannelHandlerContext) {
-        let html = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Apple OCR Server</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-                h1 { color: #007AFF; }
-                code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; }
-                .endpoint { background: #f9f9f9; padding: 15px; margin: 10px 0; border-left: 3px solid #007AFF; }
-            </style>
-        </head>
-        <body>
-            <h1>Apple OCR Server</h1>
-            <p>Vision Framework Image Analysis Service</p>
-
-            <div class="endpoint">
-                <h3>POST /analyze</h3>
-                <p>Upload an image for analysis</p>
-                <code>curl -X POST -H "Content-Type: application/octet-stream" --data-binary @image.jpg http://localhost:8080/analyze</code>
-            </div>
-
-            <div class="endpoint">
-                <h3>GET /health</h3>
-                <p>Check server health</p>
-                <code>curl http://localhost:8080/health</code>
-            </div>
-
-            <h3>Supported Features</h3>
-            <ul>
-                <li>Text Recognition (18 languages)</li>
-                <li>Face Detection & Landmarks</li>
-                <li>Barcode & QR Code Detection</li>
-                <li>Object Classification</li>
-                <li>Image Aesthetics Analysis</li>
-                <li>Saliency Detection</li>
-            </ul>
-
-            <h3>Supported Image Formats</h3>
-            <ul>
-                <li>JPEG / JPG</li>
-                <li>PNG</li>
-                <li>HEIC / HEIF</li>
-                <li>TIFF</li>
-                <li>BMP</li>
-                <li>GIF</li>
-            </ul>
-        </body>
-        </html>
+        // Simple JSON response for root endpoint
+        let json = """
+        {
+          "status": "healthy",
+          "service": "apple-ocr",
+          "endpoints": {
+            "GET /": "Service info",
+            "GET /health": "Health check",
+            "POST /analyze": "Analyze image"
+          }
+        }
         """
-        
-        sendResponse(status: .ok, body: html, contentType: "text/html", context: context)
+        sendResponse(status: .ok, body: json, contentType: "application/json", context: context)
     }
     
     private func handleHealth(context: ChannelHandlerContext) {
@@ -148,7 +115,7 @@ final class VisionServerHandler: ChannelInboundHandler {
         return """
         {
           "success": false,
-          "timestamp": "\(ISO8601DateFormatter().string(from: Date()))",
+          "timestamp": "\(Self.iso8601Formatter.string(from: Date()))",
           "error": "\(message)"
         }
         """

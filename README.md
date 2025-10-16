@@ -1,6 +1,6 @@
 # Apple OCR Server
 
-A simple HTTP server for macOS that analyzes images using Apple's Vision framework. Upload an image and receive comprehensive analysis including text recognition, face detection, barcodes, object classification, and more.
+A pure HTTP API server for macOS that analyzes images using Apple's Vision framework. Upload an image and receive comprehensive analysis including text recognition, face detection, barcodes, and object classification.
 
 ## Features
 
@@ -8,8 +8,6 @@ A simple HTTP server for macOS that analyzes images using Apple's Vision framewo
 - **Face Detection** - Detects faces with landmarks (eyes, nose, mouth, eyebrows, face contour)
 - **Barcode & QR Code Detection** - Supports QR, Code 128, Code 39, EAN-13, UPC-E, PDF417, Aztec, and more
 - **Object Classification** - Identifies objects in images using Vision's built-in models
-- **Image Aesthetics** - Analyzes visual appeal and composition
-- **Saliency Detection** - Identifies attention-grabbing and important regions
 
 ## Supported Image Formats
 
@@ -20,71 +18,75 @@ A simple HTTP server for macOS that analyzes images using Apple's Vision framewo
 - BMP
 - GIF
 
-## Building the Project
-
-### Prerequisites
+## Prerequisites
 
 - macOS 13.0 or later
 - Swift 5.9 or later
 - Xcode Command Line Tools (for `swift` command)
 
-### Build Steps
-
-#### Using Make (Recommended)
+## Quick Start
 
 ```bash
-# Build the project (Release configuration)
-make
-
-# The executable will be at: build/vision-server-bin
-
-# Build and run
+# Build and run the server
 make run
+
+# Test with an image
+make test-image IMAGE=photo.jpg
+```
+
+## Building
+
+### Using Make (Recommended)
+
+```bash
+# Build the project
+make
 
 # Build and install to /usr/local/bin
 make install
+
+# Clean build artifacts
+make clean
 
 # See all available commands
 make help
 ```
 
-#### Using Swift Package Manager Directly
+### Using Swift Package Manager Directly
 
 ```bash
 # Build release version
 swift build -c release
 
-# The executable will be at: .build/release/vision-server
-
-# Run directly
+# Run the server
 .build/release/vision-server
 
-# Or with custom port
+# Run on custom port
 .build/release/vision-server --port 3000
 ```
 
-## Usage
+## API Reference
 
-### Starting the Server
+### GET /
 
-```bash
-# Start on default port (8080)
-./vision-server
+Returns service information in JSON format.
 
-# Start on custom port
-./vision-server --port 3000
-
-# Show help
-./vision-server --help
+**Response:**
+```json
+{
+  "status": "healthy",
+  "service": "apple-ocr",
+  "endpoints": {
+    "GET /": "Service info",
+    "GET /health": "Health check",
+    "POST /analyze": "Analyze image"
+  }
+}
 ```
 
-### API Endpoints
+### GET /health
 
-#### GET /
-Server information and documentation page (HTML)
-
-#### GET /health
-Health check endpoint
+Health check endpoint.
 
 **Response:**
 ```json
@@ -94,12 +96,16 @@ Health check endpoint
 }
 ```
 
-#### POST /analyze
-Upload and analyze an image
+### POST /analyze
+
+Analyze an image and return comprehensive vision analysis results.
 
 **Request:**
 ```bash
-curl -X POST -H "Content-Type: application/octet-stream" --data-binary @image.jpg http://localhost:8080/analyze
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @image.jpg \
+  http://localhost:8080/analyze
 ```
 
 **Response:**
@@ -170,25 +176,47 @@ curl -X POST -H "Content-Type: application/octet-stream" --data-binary @image.jp
       "identifier": "outdoor",
       "confidence": 0.87
     }
-  ],
-  "imageAesthetics": {
-    "overallScore": 0.75
-  },
-  "saliency": {
-    "objectBased": [
-      {
-        "boundingBox": {...},
-        "confidence": 0.88
-      }
-    ],
-    "attentionBased": {
-      "score": 0.72
-    }
-  }
+  ]
 }
 ```
 
-## Running as a macOS Service
+**Note:** All coordinates use normalized values (0.0 to 1.0) where (0, 0) is the bottom-left corner and (1, 1) is the top-right corner.
+
+## Example Usage
+
+### Extract text from a document
+```bash
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @document.jpg \
+  http://localhost:8080/analyze | jq '.textRecognition'
+```
+
+### Detect faces in a photo
+```bash
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @family-photo.jpg \
+  http://localhost:8080/analyze | jq '.faceDetection'
+```
+
+### Scan a QR code
+```bash
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @qr-code.png \
+  http://localhost:8080/analyze | jq '.barcodes'
+```
+
+### Classify objects in an image
+```bash
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @scene.jpg \
+  http://localhost:8080/analyze | jq '.objects'
+```
+
+## Running as a Service
 
 ### Using launchd
 
@@ -231,9 +259,6 @@ launchctl start com.apple-ocr-server
 # Check status
 launchctl list | grep apple-ocr-server
 
-# View logs
-tail -f /tmp/apple-ocr-server.log
-
 # Stop the service
 launchctl stop com.apple-ocr-server
 
@@ -241,52 +266,31 @@ launchctl stop com.apple-ocr-server
 launchctl unload ~/Library/LaunchAgents/com.apple-ocr-server.plist
 ```
 
-## Example Usage
-
-### Analyze a document
-```bash
-curl -X POST -H "Content-Type: application/octet-stream" --data-binary @document.jpg http://localhost:8080/analyze | jq '.textRecognition'
-```
-
-### Detect faces in a photo
-```bash
-curl -X POST -H "Content-Type: application/octet-stream" --data-binary @family-photo.jpg http://localhost:8080/analyze | jq '.faceDetection'
-```
-
-### Scan a QR code
-```bash
-curl -X POST -H "Content-Type: application/octet-stream" --data-binary @qr-code.png http://localhost:8080/analyze | jq '.barcodes'
-```
-
-### Classify objects in an image
-```bash
-curl -X POST -H "Content-Type: application/octet-stream" --data-binary @scene.jpg http://localhost:8080/analyze | jq '.objects'
-```
-
 ## Project Structure
 
 ```
 apple-ocr/
-├── Package.swift              # Swift Package Manager manifest
-├── Makefile                   # Build automation
-├── vision-server/             # Source files
-│   ├── main.swift            # Entry point with ArgumentParser
-│   ├── Server.swift          # SwiftNIO HTTP server
-│   ├── VisionAnalyzer.swift  # Vision framework integration
-│   └── Models.swift          # JSON response models
-├── build/                     # Build output (gitignored)
-│   └── vision-server-bin     # Compiled executable
-├── vision-framework.md       # Vision framework documentation
-└── README.md                 # This file
+├── Sources/
+│   └── VisionServer/
+│       ├── main.swift            # Entry point with ArgumentParser
+│       ├── Server.swift          # SwiftNIO HTTP server
+│       ├── VisionAnalyzer.swift  # Vision framework integration
+│       └── Models.swift          # JSON response models
+├── tests/
+│   ├── meme.jpeg                # Test image
+│   └── recipe.heic              # Test image
+├── Package.swift                 # Swift Package Manager manifest
+├── Makefile                      # Build automation
+└── README.md                     # This file
 ```
 
 ## Implementation Details
 
 ### HTTP Server
 - Built with SwiftNIO for high-performance async I/O
+- Pure JSON API - no HTML interface
 - Accepts direct binary uploads (application/octet-stream)
 - Event-driven request handling
-- Returns JSON responses with detailed analysis
 
 ### Vision Framework Integration
 - Uses multiple Vision requests in parallel:
@@ -295,14 +299,6 @@ apple-ocr/
   - `VNDetectFaceCaptureQualityRequest` - Face quality scoring
   - `VNDetectBarcodesRequest` - Barcode and QR code detection
   - `VNClassifyImageRequest` - Object classification
-  - `VNGenerateObjectnessBasedSaliencyImageRequest` - Object saliency
-  - `VNGenerateAttentionBasedSaliencyImageRequest` - Attention saliency
-
-### Response Format
-All coordinates use normalized values (0.0 to 1.0) where:
-- (0, 0) is the bottom-left corner
-- (1, 1) is the top-right corner
-- This matches Vision framework's coordinate system
 
 ## Troubleshooting
 
@@ -315,7 +311,7 @@ If you get a "bind failed" error, the port is already in use. Try a different po
 ### Permission denied
 If you get a permission denied error when running the server:
 ```bash
-chmod +x vision-server
+chmod +x .build/release/vision-server
 ```
 
 ### Image not recognized
