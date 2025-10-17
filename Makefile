@@ -1,4 +1,4 @@
-# Makefile for Apple OCR Server
+# Makefile for Vision Server
 
 .PHONY: all build clean install run help test test-image
 
@@ -41,15 +41,24 @@ uninstall:
 	@rm -f /usr/local/bin/vision-server
 	@echo "[OK] Uninstall complete!"
 
-# Run the server (on port 8080)
+# Run the server (default: 127.0.0.1:8080)
 run: build
-	@echo "Starting vision-server on port 8080..."
+	@echo "Starting vision-server on 127.0.0.1:8080..."
 	@./.build/release/vision-server
 
-# Run the server on a custom port
-run-port: build
-	@echo "Starting vision-server on port $(PORT)..."
-	@./.build/release/vision-server --port $(PORT)
+# Run the server with custom host and/or port
+run-custom: build
+	@if [ -z "$(HOST)" ] && [ -z "$(PORT)" ]; then \
+		echo "[ERROR] Please specify HOST and/or PORT"; \
+		echo "        Usage: make run-custom HOST=127.0.0.1 PORT=3000"; \
+		exit 1; \
+	fi
+	@HOST_ARG=""; \
+	PORT_ARG=""; \
+	if [ ! -z "$(HOST)" ]; then HOST_ARG="--host $(HOST)"; fi; \
+	if [ ! -z "$(PORT)" ]; then PORT_ARG="--port $(PORT)"; fi; \
+	echo "Starting vision-server with $$HOST_ARG $$PORT_ARG..."; \
+	./.build/release/vision-server $$HOST_ARG $$PORT_ARG
 
 # Test with the default test images
 test: build
@@ -76,7 +85,7 @@ test-image:
 
 # Show help
 help:
-	@echo "Apple OCR Server - Makefile Commands"
+	@echo "Vision Server - Makefile Commands"
 	@echo ""
 	@echo "Usage: make [target]"
 	@echo ""
@@ -86,18 +95,20 @@ help:
 	@echo "  clean        Remove all build artifacts"
 	@echo "  install      Install the executable to /usr/local/bin"
 	@echo "  uninstall    Remove the executable from /usr/local/bin"
-	@echo "  run          Build and run the server on port 8080"
-	@echo "  run-port     Build and run on custom port (e.g., make run-port PORT=3000)"
+	@echo "  run          Build and run the server on 127.0.0.1:8080"
+	@echo "  run-custom   Build and run with custom host/port"
 	@echo "  test         Build and test with the included test images"
 	@echo "  test-image   Test with a specific image (e.g., make test-image IMAGE=photo.jpg)"
 	@echo "  help         Show this help message"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make                           # Build the project"
-	@echo "  make clean build               # Clean and rebuild"
-	@echo "  make install                   # Build and install to /usr/local/bin"
-	@echo "  make run                       # Build and run server"
-	@echo "  make run-port PORT=3000        # Run on port 3000"
-	@echo "  make test                      # Test with default test images"
-	@echo "  make test-image IMAGE=pic.jpg  # Test with a specific image"
+	@echo "  make                                  # Build the project"
+	@echo "  make clean build                      # Clean and rebuild"
+	@echo "  make install                          # Build and install to /usr/local/bin"
+	@echo "  make run                              # Build and run server on 127.0.0.1:8080"
+	@echo "  make run-custom PORT=3000             # Run on port 3000"
+	@echo "  make run-custom HOST=127.0.0.1        # Run on localhost only"
+	@echo "  make run-custom HOST=0.0.0.0 PORT=80  # Run on all interfaces, port 80"
+	@echo "  make test                             # Test with default test images"
+	@echo "  make test-image IMAGE=pic.jpg         # Test with a specific image"
 	@echo ""

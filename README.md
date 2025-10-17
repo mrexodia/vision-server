@@ -1,4 +1,4 @@
-# Apple OCR Server
+# Vision Server
 
 A pure HTTP API server for macOS that analyzes images using Apple's Vision framework. Upload an image and receive comprehensive analysis including text recognition, face detection, barcodes, and object classification.
 
@@ -58,30 +58,41 @@ make help
 # Build release version
 swift build -c release
 
-# Run the server
+# Run the server (defaults to 127.0.0.1:8080)
 .build/release/vision-server
 
 # Run on custom port
 .build/release/vision-server --port 3000
+
+# Run on all network interfaces
+.build/release/vision-server --host 0.0.0.0
+
+# Run on specific host and port
+.build/release/vision-server --host 0.0.0.0 --port 3000
+
+# Show all options
+.build/release/vision-server --help
 ```
 
 ## API Reference
 
-### GET /
+The service is fully self-documenting via OpenAPI 3.0 specification.
 
-Returns service information in JSON format.
+### GET / and GET /openapi.json
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "service": "apple-ocr",
-  "endpoints": {
-    "GET /": "Service info",
-    "GET /health": "Health check",
-    "POST /analyze": "Analyze image"
-  }
-}
+Returns the complete OpenAPI 3.0 specification for the API.
+
+**Usage:**
+```bash
+# Get the OpenAPI spec
+curl http://localhost:8080/openapi.json
+
+# View in Swagger UI or other OpenAPI tools
+# The spec includes complete documentation for:
+# - All endpoints and their parameters
+# - Request/response schemas
+# - Data types and constraints
+# - Example values
 ```
 
 ### GET /health
@@ -92,7 +103,7 @@ Health check endpoint.
 ```json
 {
   "status": "ok",
-  "service": "apple-ocr-server"
+  "service": "vision-server"
 }
 ```
 
@@ -220,7 +231,7 @@ curl -X POST \
 
 ### Using launchd
 
-1. Create a plist file at `~/Library/LaunchAgents/com.apple-ocr-server.plist`:
+1. Create a plist file at `~/Library/LaunchAgents/com.vision-server.plist`:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -228,7 +239,7 @@ curl -X POST \
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.apple-ocr-server</string>
+    <string>com.vision-server</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/vision-server</string>
@@ -240,9 +251,9 @@ curl -X POST \
     <key>KeepAlive</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/apple-ocr-server.log</string>
+    <string>/tmp/vision-server.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/apple-ocr-server.error.log</string>
+    <string>/tmp/vision-server.error.log</string>
 </dict>
 </plist>
 ```
@@ -251,25 +262,25 @@ curl -X POST \
 
 ```bash
 # Load the service
-launchctl load ~/Library/LaunchAgents/com.apple-ocr-server.plist
+launchctl load ~/Library/LaunchAgents/com.vision-server.plist
 
 # Start the service
-launchctl start com.apple-ocr-server
+launchctl start com.vision-server
 
 # Check status
-launchctl list | grep apple-ocr-server
+launchctl list | grep vision-server
 
 # Stop the service
-launchctl stop com.apple-ocr-server
+launchctl stop com.vision-server
 
 # Unload the service
-launchctl unload ~/Library/LaunchAgents/com.apple-ocr-server.plist
+launchctl unload ~/Library/LaunchAgents/com.vision-server.plist
 ```
 
 ## Project Structure
 
 ```
-apple-ocr/
+vision-server/
 ├── Sources/
 │   └── VisionServer/
 │       ├── main.swift            # Entry point with ArgumentParser

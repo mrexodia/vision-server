@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "apple-ocr-server",
+    name: "vision-server",
     platforms: [
         .macOS(.v13)
     ],
