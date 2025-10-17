@@ -29,11 +29,14 @@ A pure HTTP API server for macOS that analyzes images using Apple's Vision frame
 ## Quick Start
 
 ```bash
-# Build and run the server
-make run
+# Test the server with an image (builds, starts, tests, and stops automatically)
+make test IMAGE=tests/meme.jpeg
 
-# Test with an image
-make test-image IMAGE=photo.jpg
+# Or start the server manually
+make start
+
+# Stop the server
+make stop
 ```
 
 ## Building
@@ -42,16 +45,41 @@ make test-image IMAGE=photo.jpg
 
 ```bash
 # Build the project
-make
+make build
 
-# Build and install to /usr/local/bin
-make install
+# Start the server (builds and runs on 127.0.0.1:8080)
+make start
 
-# Clean build artifacts
+# Start on a custom port
+make start PORT=3000
+
+# Start on all network interfaces
+make start HOST=0.0.0.0 PORT=8080
+
+# Stop the server
+make stop
+
+# Test with an image (full lifecycle: stop → build → start → test → stop)
+make test IMAGE=path/to/image.jpg
+
+# Test with custom host/port
+make test IMAGE=tests/meme.jpeg HOST=0.0.0.0 PORT=3000
+
+# Clean build artifacts and runtime files
 make clean
+```
 
-# See all available commands
-make help
+The `make test` command outputs pure JSON to stdout, making it pipeable:
+
+```bash
+# Extract just the recognized text
+make test IMAGE=tests/meme.jpeg | jq -r '.fullText'
+
+# Count detected faces
+make test IMAGE=photo.jpg | jq '.faceDetection | length'
+
+# Get all text observations
+make test IMAGE=document.png | jq '.textRecognition'
 ```
 
 ### Using Swift Package Manager Directly
@@ -219,36 +247,54 @@ curl -X POST \
 
 ## Example Usage
 
-### Extract text from a document
+### Using the test command (recommended)
+
 ```bash
+# Extract text from a document
+make test IMAGE=document.jpg | jq '.textRecognition'
+
+# Detect faces in a photo
+make test IMAGE=family-photo.jpg | jq '.faceDetection'
+
+# Scan a QR code
+make test IMAGE=qr-code.png | jq '.barcodes'
+
+# Classify objects in an image
+make test IMAGE=scene.jpg | jq '.objects'
+```
+
+### Using curl directly (requires server to be running)
+
+```bash
+# Start the server first
+make start
+
+# Extract text from a document
 curl -X POST \
   -H "Content-Type: application/octet-stream" \
   --data-binary @document.jpg \
   http://localhost:8080/analyze | jq '.textRecognition'
-```
 
-### Detect faces in a photo
-```bash
+# Detect faces in a photo
 curl -X POST \
   -H "Content-Type: application/octet-stream" \
   --data-binary @family-photo.jpg \
   http://localhost:8080/analyze | jq '.faceDetection'
-```
 
-### Scan a QR code
-```bash
+# Scan a QR code
 curl -X POST \
   -H "Content-Type: application/octet-stream" \
   --data-binary @qr-code.png \
   http://localhost:8080/analyze | jq '.barcodes'
-```
 
-### Classify objects in an image
-```bash
+# Classify objects in an image
 curl -X POST \
   -H "Content-Type: application/octet-stream" \
   --data-binary @scene.jpg \
   http://localhost:8080/analyze | jq '.objects'
+
+# Stop the server when done
+make stop
 ```
 
 ## Running as a Service
@@ -340,17 +386,30 @@ vision-server/
 ### Port already in use
 If you get a "bind failed" error, the port is already in use. Try a different port:
 ```bash
-./vision-server --port 8081
+make start PORT=8081
 ```
 
-### Permission denied
-If you get a permission denied error when running the server:
+### Server not responding
+Check if the server is running and view the logs:
 ```bash
-chmod +x .build/release/vision-server
+# Check if PID file exists
+cat .server.pid
+
+# View server output logs
+cat server.log
+
+# View server error logs
+cat server.err.log
+
+# Stop any stuck server processes
+make stop
 ```
 
 ### Image not recognized
-Ensure the image file is valid and in a supported format. Check the server logs for detailed error messages.
+Ensure the image file is valid and in a supported format. Check the server logs for detailed error messages:
+```bash
+cat server.err.log
+```
 
 ## License
 

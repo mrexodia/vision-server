@@ -1,6 +1,5 @@
 # Build artifacts
 .build/
-build/
 DerivedData/
 *.dSYM/
 
@@ -29,3 +28,8 @@ Thumbs.db
 *.tmp
 .env
 .env.local
+tests/*.json
+
+# Server runtime
+.server.pid
+.server.url
