@@ -22,24 +22,146 @@ class VisionAnalyzer {
             colorSpace: cgImage.colorSpace?.name as String?
         )
 
-        // Perform all analyses
-        let textRecognition = try recognizeText(in: cgImage)
-        let fullText = textRecognition.isEmpty ? nil : orderTextObservations(textRecognition)
-        let faceDetection = try detectFaces(in: cgImage)
-        let barcodes = try detectBarcodes(in: cgImage)
-        let objects = try classifyImage(cgImage)
-        // Note: Aesthetics and saliency analysis removed as they were returning placeholder values
-        // These features require iOS 18.0+ or more complex implementation
+        // Create all Vision requests
+        let textRequest = VNRecognizeTextRequest()
+        textRequest.recognitionLevel = .accurate
+        textRequest.usesLanguageCorrection = true
+        textRequest.automaticallyDetectsLanguage = true
+
+        let faceLandmarksRequest = VNDetectFaceLandmarksRequest()
+        let faceQualityRequest = VNDetectFaceCaptureQualityRequest()
+        let barcodeRequest = VNDetectBarcodesRequest()
+        let classificationRequest = VNClassifyImageRequest()
+        let bodyPoseRequest = VNDetectHumanBodyPoseRequest()
+        let handPoseRequest = VNDetectHumanHandPoseRequest()
+        handPoseRequest.maximumHandCount = 2
+        let attentionSaliencyRequest = VNGenerateAttentionBasedSaliencyImageRequest()
+        let objectnessSaliencyRequest = VNGenerateObjectnessBasedSaliencyImageRequest()
+        let animalRequest = VNRecognizeAnimalsRequest()
+        let rectangleRequest = VNDetectRectanglesRequest()
+        rectangleRequest.minimumAspectRatio = 0.1
+        rectangleRequest.maximumAspectRatio = 1.0
+        rectangleRequest.minimumSize = 0.1
+        rectangleRequest.maximumObservations = 10
+        let horizonRequest = VNDetectHorizonRequest()
+        let contourRequest = VNDetectContoursRequest()
+        contourRequest.contrastAdjustment = 1.0
+        contourRequest.detectsDarkOnLight = true
+        let humanRectangleRequest = VNDetectHumanRectanglesRequest()
+        let featurePrintRequest = VNGenerateImageFeaturePrintRequest()
+
+        // Use single handler for all requests - Vision framework handles parallelization
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+
+        // Perform all requests in parallel
+        try handler.perform([
+            textRequest,
+            faceLandmarksRequest,
+            faceQualityRequest,
+            barcodeRequest,
+            classificationRequest,
+            bodyPoseRequest,
+            handPoseRequest,
+            attentionSaliencyRequest,
+            objectnessSaliencyRequest,
+            animalRequest,
+            rectangleRequest,
+            horizonRequest,
+            contourRequest,
+            humanRectangleRequest,
+            featurePrintRequest
+        ])
+
+        // Extract text recognition results
+        let textObservations = (textRequest.results as? [VNRecognizedTextObservation])?.compactMap { $0.toResult() } ?? []
+        let fullText = textObservations.isEmpty ? nil : orderTextObservations(textObservations)
+
+        // Extract face detection results
+        var faceResults: [FaceObservationResult] = []
+        if let landmarksObs = faceLandmarksRequest.results as? [VNFaceObservation] {
+            faceResults = landmarksObs.map { $0.toResult() }
+        }
+        // Merge capture quality if available
+        if let qualityObs = faceQualityRequest.results as? [VNFaceObservation] {
+            for (index, qualityObservation) in qualityObs.enumerated() {
+                if index < faceResults.count {
+                    var result = faceResults[index]
+                    result = FaceObservationResult(
+                        boundingBox: result.boundingBox,
+                        confidence: result.confidence,
+                        landmarks: result.landmarks,
+                        captureQuality: qualityObservation.faceCaptureQuality,
+                        roll: result.roll,
+                        yaw: result.yaw,
+                        pitch: result.pitch
+                    )
+                    faceResults[index] = result
+                }
+            }
+        }
+
+        // Extract barcode results
+        let barcodes = (barcodeRequest.results as? [VNBarcodeObservation])?.map { $0.toResult() } ?? []
+
+        // Extract classification results
+        let objects = (classificationRequest.results as? [VNClassificationObservation])?
+            .filter { $0.confidence > 0.1 }
+            .prefix(10)
+            .map { $0.toResult() } ?? []
+
+        // Extract body pose
+        let bodyPose = (bodyPoseRequest.results as? [VNHumanBodyPoseObservation])?.first?.toResult()
+
+        // Extract hand poses
+        let handPoses = (handPoseRequest.results as? [VNHumanHandPoseObservation])?.compactMap { $0.toResult() }
+
+        // Extract saliency results
+        var attentionResult: SalientRegion? = nil
+        var objectResults: [SalientObject] = []
+        if let attentionObs = attentionSaliencyRequest.results?.first as? VNSaliencyImageObservation {
+            attentionResult = SalientRegion(score: attentionObs.confidence)
+        }
+        if let objectnessObs = objectnessSaliencyRequest.results?.first as? VNSaliencyImageObservation,
+           let salientObjects = objectnessObs.salientObjects {
+            objectResults = salientObjects.map { SalientObject(boundingBox: BoundingBox(from: $0.boundingBox), confidence: $0.confidence) }
+        }
+        let saliency = SaliencyResult(objectBased: objectResults.isEmpty ? nil : objectResults, attentionBased: attentionResult)
+
+        // Extract animal recognition
+        let animals = (animalRequest.results as? [VNRecognizedObjectObservation])?.map { $0.toAnimalResult() }
+
+        // Extract rectangles
+        let rectangles = (rectangleRequest.results as? [VNRectangleObservation])?.map { $0.toRectangleResult() }
+
+        // Extract horizon
+        let horizon = (horizonRequest.results as? [VNHorizonObservation])?.first?.toResult()
+
+        // Extract contours
+        let contours = (contourRequest.results as? [VNContoursObservation])?.first?.toResult()
+
+        // Extract human rectangles
+        let humanRectangles = (humanRectangleRequest.results as? [VNHumanObservation])?.map { $0.toHumanRectangleResult() }
+
+        // Extract feature print
+        let featurePrint = (featurePrintRequest.results as? [VNFeaturePrintObservation])?.first?.toResult()
 
         return AnalysisResponse.success(
             imageInfo: imageInfo,
-            textRecognition: textRecognition,
+            textRecognition: textObservations,
             fullText: fullText,
-            faceDetection: faceDetection,
+            faceDetection: faceResults,
             barcodes: barcodes,
             objects: objects,
-            imageAesthetics: nil,
-            saliency: nil
+            imageAesthetics: nil,  // Requires macOS 15+ Sequoia with specific APIs
+            saliency: saliency,
+            bodyPose: bodyPose,
+            handPoses: handPoses,
+            animals: animals,
+            rectangles: rectangles,
+            horizon: horizon,
+            contours: contours,
+            humanRectangles: humanRectangles,
+            featurePrint: featurePrint
         )
     }
 
@@ -65,80 +187,46 @@ class VisionAnalyzer {
         return observations.compactMap { $0.toResult() }
     }
 
-    // MARK: - Text Ordering
+    // MARK: - Text Ordering (Improved Algorithm)
 
     private func orderTextObservations(_ observations: [TextObservationResult]) -> String {
         guard !observations.isEmpty else { return "" }
 
-        // Group observations into lines based on vertical proximity
+        // Sort observations by Y-coordinate (top to bottom)
         // Note: Vision coordinates have origin at bottom-left, so higher Y = higher on page
-        let sortedByY = observations.sorted { $0.boundingBox.y > $1.boundingBox.y }
+        let sortedObservations = observations.sorted { $0.boundingBox.y > $1.boundingBox.y }
 
-        var lines: [[TextObservationResult]] = []
-        var currentLine: [TextObservationResult] = []
-        var lastY: Float?
+        var paragraphs: [[String]] = [[]]
+        var previousY: Float = 1.0
+        var previousHeight: Float = 0.06
 
-        for observation in sortedByY {
+        for observation in sortedObservations {
             let currentY = observation.boundingBox.y
             let height = observation.boundingBox.height
+            let verticalGap = previousY - currentY - previousHeight
 
-            if let prevY = lastY {
-                // Check if this observation is on a new line
-                // Consider it a new line if vertical distance is more than half the height
-                let verticalDistance = abs(prevY - currentY)
-                if verticalDistance > height * 0.5 {
-                    // Start a new line
-                    if !currentLine.isEmpty {
-                        lines.append(currentLine)
-                    }
-                    currentLine = [observation]
-                } else {
-                    // Same line
-                    currentLine.append(observation)
-                }
-            } else {
-                // First observation
-                currentLine.append(observation)
+            // Detect paragraph breaks using vertical gaps
+            // Use line height multiplier instead of fixed threshold to adapt to text size
+            // Gap must be > 1.5x the average line height to be considered a paragraph break
+            let avgHeight = (height + previousHeight) / 2.0
+            let hasLargeVerticalGap = verticalGap > (avgHeight * 1.5)
+
+            let isNewParagraph = hasLargeVerticalGap
+
+            if isNewParagraph && !paragraphs.last!.isEmpty {
+                paragraphs.append([])
             }
 
-            lastY = currentY
+            paragraphs[paragraphs.count - 1].append(observation.text)
+            previousY = currentY
+            previousHeight = height
         }
 
-        // Don't forget the last line
-        if !currentLine.isEmpty {
-            lines.append(currentLine)
-        }
-
-        // Sort each line left-to-right and build the full text
-        var result = ""
-        var previousLineY: Float?
-
-        for line in lines {
-            // Sort left to right
-            let sortedLine = line.sorted { $0.boundingBox.x < $1.boundingBox.x }
-
-            // Check if we need a paragraph break (larger vertical gap)
-            if let prevY = previousLineY {
-                let currentY = sortedLine.first?.boundingBox.y ?? 0
-                let avgHeight = sortedLine.first?.boundingBox.height ?? 0.05
-                let verticalGap = abs(prevY - currentY)
-
-                // If gap is more than 1.5x the average height, consider it a paragraph break
-                if verticalGap > avgHeight * 1.5 {
-                    result += "\n\n"
-                } else {
-                    result += "\n"
-                }
-            }
-
-            // Join text in the line with spaces
-            let lineText = sortedLine.map { $0.text }.joined(separator: " ")
-            result += lineText
-
-            previousLineY = sortedLine.first?.boundingBox.y
-        }
-
-        return result
+        // Join paragraphs with double newlines
+        return paragraphs
+            .filter { !$0.isEmpty }
+            .map { $0.joined(separator: " ") }
+            .joined(separator: "\n\n")
     }
 
     // MARK: - Face Detection
@@ -216,6 +304,173 @@ class VisionAnalyzer {
             .filter { $0.confidence > 0.1 }
             .prefix(10)
             .map { $0.toResult() }
+    }
+
+    // MARK: - Body Pose Detection
+
+    private func detectBodyPose(in image: CGImage) throws -> BodyPoseResult? {
+        let request = VNDetectHumanBodyPoseRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNHumanBodyPoseObservation],
+              let observation = observations.first else {
+            return nil
+        }
+
+        return observation.toResult()
+    }
+
+    // MARK: - Hand Pose Detection
+
+    private func detectHandPoses(in image: CGImage) throws -> [HandPoseResult] {
+        let request = VNDetectHumanHandPoseRequest()
+        request.maximumHandCount = 2  // Default: detect up to 2 hands
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNHumanHandPoseObservation] else {
+            return []
+        }
+
+        return observations.compactMap { $0.toResult() }
+    }
+
+    // MARK: - Saliency Detection
+
+    private func detectSaliency(in image: CGImage) throws -> SaliencyResult {
+        let attentionRequest = VNGenerateAttentionBasedSaliencyImageRequest()
+        let objectnessRequest = VNGenerateObjectnessBasedSaliencyImageRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([attentionRequest, objectnessRequest])
+
+        var attentionResult: SalientRegion? = nil
+        var objectResults: [SalientObject] = []
+
+        // Process attention-based saliency
+        if let attentionObs = attentionRequest.results?.first as? VNSaliencyImageObservation {
+            // Get overall saliency score (average of salient region)
+            attentionResult = SalientRegion(score: attentionObs.confidence)
+        }
+
+        // Process objectness-based saliency
+        if let objectnessObs = objectnessRequest.results?.first as? VNSaliencyImageObservation {
+            if let salientObjects = objectnessObs.salientObjects {
+                objectResults = salientObjects.map { obj in
+                    SalientObject(
+                        boundingBox: BoundingBox(from: obj.boundingBox),
+                        confidence: obj.confidence
+                    )
+                }
+            }
+        }
+
+        return SaliencyResult(
+            objectBased: objectResults.isEmpty ? nil : objectResults,
+            attentionBased: attentionResult
+        )
+    }
+
+    // MARK: - Animal Recognition
+
+    private func recognizeAnimals(in image: CGImage) throws -> [AnimalResult] {
+        let request = VNRecognizeAnimalsRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNRecognizedObjectObservation] else {
+            return []
+        }
+
+        return observations.map { $0.toAnimalResult() }
+    }
+
+    // MARK: - Rectangle Detection
+
+    private func detectRectangles(in image: CGImage) throws -> [RectangleResult] {
+        let request = VNDetectRectanglesRequest()
+        request.minimumAspectRatio = 0.1
+        request.maximumAspectRatio = 1.0
+        request.minimumSize = 0.1
+        request.maximumObservations = 10
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNRectangleObservation] else {
+            return []
+        }
+
+        return observations.map { $0.toRectangleResult() }
+    }
+
+    // MARK: - Horizon Detection
+
+    private func detectHorizon(in image: CGImage) throws -> HorizonResult? {
+        let request = VNDetectHorizonRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNHorizonObservation],
+              let observation = observations.first else {
+            return nil
+        }
+
+        return observation.toResult()
+    }
+
+    // MARK: - Contour Detection
+
+    private func detectContours(in image: CGImage) throws -> ContourResult? {
+        let request = VNDetectContoursRequest()
+        request.contrastAdjustment = 1.0
+        request.detectsDarkOnLight = true
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNContoursObservation],
+              let observation = observations.first else {
+            return nil
+        }
+
+        return observation.toResult()
+    }
+
+    // MARK: - Human Rectangle Detection
+
+    private func detectHumanRectangles(in image: CGImage) throws -> [HumanRectangleResult] {
+        let request = VNDetectHumanRectanglesRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNHumanObservation] else {
+            return []
+        }
+
+        return observations.map { $0.toHumanRectangleResult() }
+    }
+
+    // MARK: - Feature Print Generation
+
+    private func generateFeaturePrint(for image: CGImage) throws -> FeaturePrintResult? {
+        let request = VNGenerateImageFeaturePrintRequest()
+
+        let handler = VNImageRequestHandler(cgImage: image, options: [:])
+        try handler.perform([request])
+
+        guard let observations = request.results as? [VNFeaturePrintObservation],
+              let observation = observations.first else {
+            return nil
+        }
+
+        return observation.toResult()
     }
 
 

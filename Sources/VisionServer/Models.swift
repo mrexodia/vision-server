@@ -14,6 +14,14 @@ struct AnalysisResponse: Codable {
     let objects: [ClassificationResult]?
     let imageAesthetics: AestheticsResult?
     let saliency: SaliencyResult?
+    let bodyPose: BodyPoseResult?
+    let handPoses: [HandPoseResult]?
+    let animals: [AnimalResult]?
+    let rectangles: [RectangleResult]?
+    let horizon: HorizonResult?
+    let contours: ContourResult?
+    let humanRectangles: [HumanRectangleResult]?
+    let featurePrint: FeaturePrintResult?
     let error: String?
 
     static func success(
@@ -24,7 +32,15 @@ struct AnalysisResponse: Codable {
         barcodes: [BarcodeResult],
         objects: [ClassificationResult],
         imageAesthetics: AestheticsResult?,
-        saliency: SaliencyResult?
+        saliency: SaliencyResult?,
+        bodyPose: BodyPoseResult?,
+        handPoses: [HandPoseResult]?,
+        animals: [AnimalResult]?,
+        rectangles: [RectangleResult]?,
+        horizon: HorizonResult?,
+        contours: ContourResult?,
+        humanRectangles: [HumanRectangleResult]?,
+        featurePrint: FeaturePrintResult?
     ) -> AnalysisResponse {
         return AnalysisResponse(
             success: true,
@@ -37,6 +53,14 @@ struct AnalysisResponse: Codable {
             objects: objects,
             imageAesthetics: imageAesthetics,
             saliency: saliency,
+            bodyPose: bodyPose,
+            handPoses: handPoses,
+            animals: animals,
+            rectangles: rectangles,
+            horizon: horizon,
+            contours: contours,
+            humanRectangles: humanRectangles,
+            featurePrint: featurePrint,
             error: nil
         )
     }
@@ -53,6 +77,14 @@ struct AnalysisResponse: Codable {
             objects: nil,
             imageAesthetics: nil,
             saliency: nil,
+            bodyPose: nil,
+            handPoses: nil,
+            animals: nil,
+            rectangles: nil,
+            horizon: nil,
+            contours: nil,
+            humanRectangles: nil,
+            featurePrint: nil,
             error: message
         )
     }
@@ -219,6 +251,189 @@ extension VNClassificationObservation {
         return ClassificationResult(
             identifier: identifier,
             confidence: confidence
+        )
+    }
+}
+
+// MARK: - Body Pose Models
+
+struct BodyPoseResult: Codable {
+    let joints: [String: JointPoint]
+    let confidence: Float
+}
+
+struct JointPoint: Codable {
+    let position: Point
+    let confidence: Float
+}
+
+// MARK: - Hand Pose Models
+
+struct HandPoseResult: Codable {
+    let chirality: String  // "left" or "right"
+    let joints: [String: JointPoint]
+    let confidence: Float
+}
+
+// MARK: - Animal Recognition Models
+
+struct AnimalResult: Codable {
+    let label: String  // "cat" or "dog"
+    let confidence: Float
+    let boundingBox: BoundingBox
+}
+
+// MARK: - Shape Detection Models
+
+struct RectangleResult: Codable {
+    let boundingBox: BoundingBox
+    let topLeft: Point
+    let topRight: Point
+    let bottomLeft: Point
+    let bottomRight: Point
+    let confidence: Float
+}
+
+struct HorizonResult: Codable {
+    let angle: Float  // in degrees
+    let confidence: Float
+}
+
+struct ContourResult: Codable {
+    let contourCount: Int
+    let normalizedPathCount: Int
+}
+
+struct HumanRectangleResult: Codable {
+    let boundingBox: BoundingBox
+    let confidence: Float
+}
+
+// MARK: - Feature Print Models
+
+struct FeaturePrintResult: Codable {
+    let elementCount: Int
+    let elementType: String
+}
+
+// MARK: - Extensions for New Vision Observations
+
+extension VNHumanBodyPoseObservation {
+    func toResult() -> BodyPoseResult? {
+        guard let recognizedPoints = try? recognizedPoints(.all) else { return nil }
+
+        var joints: [String: JointPoint] = [:]
+        for (key, point) in recognizedPoints {
+            joints[String(describing: key.rawValue)] = JointPoint(
+                position: Point(from: point.location),
+                confidence: point.confidence
+            )
+        }
+
+        return BodyPoseResult(
+            joints: joints,
+            confidence: confidence
+        )
+    }
+}
+
+extension VNHumanHandPoseObservation {
+    func toResult() -> HandPoseResult? {
+        guard let recognizedPoints = try? recognizedPoints(.all) else { return nil }
+
+        var joints: [String: JointPoint] = [:]
+        for (key, point) in recognizedPoints {
+            joints[String(describing: key.rawValue)] = JointPoint(
+                position: Point(from: point.location),
+                confidence: point.confidence
+            )
+        }
+
+        let chiralityString: String
+        switch chirality {
+        case .left:
+            chiralityString = "left"
+        case .right:
+            chiralityString = "right"
+        default:
+            chiralityString = "unknown"
+        }
+
+        return HandPoseResult(
+            chirality: chiralityString,
+            joints: joints,
+            confidence: confidence
+        )
+    }
+}
+
+extension VNRecognizedObjectObservation {
+    func toAnimalResult() -> AnimalResult {
+        return AnimalResult(
+            label: labels.first?.identifier ?? "unknown",
+            confidence: confidence,
+            boundingBox: BoundingBox(from: boundingBox)
+        )
+    }
+}
+
+extension VNRectangleObservation {
+    func toRectangleResult() -> RectangleResult {
+        return RectangleResult(
+            boundingBox: BoundingBox(from: boundingBox),
+            topLeft: Point(from: topLeft),
+            topRight: Point(from: topRight),
+            bottomLeft: Point(from: bottomLeft),
+            bottomRight: Point(from: bottomRight),
+            confidence: confidence
+        )
+    }
+}
+
+extension VNHorizonObservation {
+    func toResult() -> HorizonResult {
+        // Convert angle from radians to degrees
+        let degrees = angle * 180.0 / .pi
+        return HorizonResult(
+            angle: Float(degrees),
+            confidence: confidence
+        )
+    }
+}
+
+extension VNContoursObservation {
+    func toResult() -> ContourResult {
+        // Get a rough count of points in the path
+        var pointCount = 0
+        normalizedPath.applyWithBlock { element in
+            if element.pointee.type != .closeSubpath {
+                pointCount += 1
+            }
+        }
+
+        return ContourResult(
+            contourCount: contourCount,
+            normalizedPathCount: pointCount
+        )
+    }
+}
+
+extension VNHumanObservation {
+    func toHumanRectangleResult() -> HumanRectangleResult {
+        return HumanRectangleResult(
+            boundingBox: BoundingBox(from: boundingBox),
+            confidence: confidence
+        )
+    }
+}
+
+extension VNFeaturePrintObservation {
+    func toResult() -> FeaturePrintResult {
+        // VNFeaturePrintObservation doesn't directly expose element details
+        // We can only return basic information
+        return FeaturePrintResult(
+            elementCount: data.count,
+            elementType: String(describing: type(of: data))
         )
     }
 }

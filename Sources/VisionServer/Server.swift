@@ -237,6 +237,58 @@ final class VisionServerHandler: ChannelInboundHandler {
                 "items": {
                   "$ref": "#/components/schemas/ObjectClassification"
                 }
+              },
+              "imageAesthetics": {
+                "nullable": true,
+                "$ref": "#/components/schemas/AestheticsResult"
+              },
+              "saliency": {
+                "nullable": true,
+                "$ref": "#/components/schemas/SaliencyResult"
+              },
+              "bodyPose": {
+                "nullable": true,
+                "$ref": "#/components/schemas/BodyPoseResult"
+              },
+              "handPoses": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/HandPoseResult"
+                }
+              },
+              "animals": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/AnimalResult"
+                }
+              },
+              "rectangles": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/RectangleResult"
+                }
+              },
+              "horizon": {
+                "nullable": true,
+                "$ref": "#/components/schemas/HorizonResult"
+              },
+              "contours": {
+                "nullable": true,
+                "$ref": "#/components/schemas/ContourResult"
+              },
+              "humanRectangles": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/HumanRectangleResult"
+                }
+              },
+              "featurePrint": {
+                "nullable": true,
+                "$ref": "#/components/schemas/FeaturePrintResult"
               }
             }
           },
@@ -498,6 +550,214 @@ final class VisionServerHandler: ChannelInboundHandler {
                 "minimum": 0,
                 "maximum": 1,
                 "example": 0.92
+              }
+            }
+          },
+          "AestheticsResult": {
+            "type": "object",
+            "properties": {
+              "overallScore": {
+                "type": "number",
+                "format": "double",
+                "description": "Overall aesthetics score from -1.0 to 1.0"
+              },
+              "isUtility": {
+                "type": "number",
+                "format": "double",
+                "nullable": true,
+                "description": "Score indicating if image is utility content (screenshots, receipts)"
+              }
+            }
+          },
+          "SaliencyResult": {
+            "type": "object",
+            "properties": {
+              "objectBased": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/SalientObject"
+                }
+              },
+              "attentionBased": {
+                "nullable": true,
+                "$ref": "#/components/schemas/SalientRegion"
+              }
+            }
+          },
+          "SalientObject": {
+            "type": "object",
+            "required": ["boundingBox", "confidence"],
+            "properties": {
+              "boundingBox": {
+                "$ref": "#/components/schemas/BoundingBox"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "SalientRegion": {
+            "type": "object",
+            "required": ["score"],
+            "properties": {
+              "score": {
+                "type": "number",
+                "format": "double",
+                "description": "Overall saliency score"
+              }
+            }
+          },
+          "BodyPoseResult": {
+            "type": "object",
+            "required": ["joints", "confidence"],
+            "properties": {
+              "joints": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JointPoint"
+                },
+                "description": "Dictionary of joint names to joint points (19 joints total)"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "JointPoint": {
+            "type": "object",
+            "required": ["position", "confidence"],
+            "properties": {
+              "position": {
+                "$ref": "#/components/schemas/Point"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "HandPoseResult": {
+            "type": "object",
+            "required": ["chirality", "joints", "confidence"],
+            "properties": {
+              "chirality": {
+                "type": "string",
+                "enum": ["left", "right", "unknown"],
+                "description": "Which hand is detected"
+              },
+              "joints": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JointPoint"
+                },
+                "description": "Dictionary of joint names to joint points (21 joints per hand)"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "AnimalResult": {
+            "type": "object",
+            "required": ["label", "confidence", "boundingBox"],
+            "properties": {
+              "label": {
+                "type": "string",
+                "enum": ["cat", "dog", "unknown"],
+                "description": "Recognized animal species"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              },
+              "boundingBox": {
+                "$ref": "#/components/schemas/BoundingBox"
+              }
+            }
+          },
+          "RectangleResult": {
+            "type": "object",
+            "required": ["boundingBox", "topLeft", "topRight", "bottomLeft", "bottomRight", "confidence"],
+            "properties": {
+              "boundingBox": {
+                "$ref": "#/components/schemas/BoundingBox"
+              },
+              "topLeft": {
+                "$ref": "#/components/schemas/Point"
+              },
+              "topRight": {
+                "$ref": "#/components/schemas/Point"
+              },
+              "bottomLeft": {
+                "$ref": "#/components/schemas/Point"
+              },
+              "bottomRight": {
+                "$ref": "#/components/schemas/Point"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "HorizonResult": {
+            "type": "object",
+            "required": ["angle", "confidence"],
+            "properties": {
+              "angle": {
+                "type": "number",
+                "format": "double",
+                "description": "Horizon angle in degrees"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "ContourResult": {
+            "type": "object",
+            "required": ["contourCount", "normalizedPathCount"],
+            "properties": {
+              "contourCount": {
+                "type": "integer",
+                "description": "Total number of contours detected"
+              },
+              "normalizedPathCount": {
+                "type": "integer",
+                "description": "Number of normalized path points"
+              }
+            }
+          },
+          "HumanRectangleResult": {
+            "type": "object",
+            "required": ["boundingBox", "confidence"],
+            "properties": {
+              "boundingBox": {
+                "$ref": "#/components/schemas/BoundingBox",
+                "description": "Bounding box for detected human upper body"
+              },
+              "confidence": {
+                "type": "number",
+                "format": "double"
+              }
+            }
+          },
+          "FeaturePrintResult": {
+            "type": "object",
+            "required": ["elementCount", "elementType"],
+            "properties": {
+              "elementCount": {
+                "type": "integer",
+                "description": "Number of elements in the feature vector"
+              },
+              "elementType": {
+                "type": "string",
+                "description": "Type of elements in the feature vector"
               }
             }
           }
