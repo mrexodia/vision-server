@@ -8,6 +8,7 @@ struct AnalysisResponse: Codable {
     let timestamp: String
     let imageInfo: ImageInfo?
     let textRecognition: [TextObservationResult]?
+    let fullText: String?
     let faceDetection: [FaceObservationResult]?
     let barcodes: [BarcodeResult]?
     let objects: [ClassificationResult]?
@@ -18,6 +19,7 @@ struct AnalysisResponse: Codable {
     static func success(
         imageInfo: ImageInfo,
         textRecognition: [TextObservationResult],
+        fullText: String?,
         faceDetection: [FaceObservationResult],
         barcodes: [BarcodeResult],
         objects: [ClassificationResult],
@@ -29,6 +31,7 @@ struct AnalysisResponse: Codable {
             timestamp: ISO8601DateFormatter().string(from: Date()),
             imageInfo: imageInfo,
             textRecognition: textRecognition,
+            fullText: fullText,
             faceDetection: faceDetection,
             barcodes: barcodes,
             objects: objects,
@@ -44,6 +47,7 @@ struct AnalysisResponse: Codable {
             timestamp: ISO8601DateFormatter().string(from: Date()),
             imageInfo: nil,
             textRecognition: nil,
+            fullText: nil,
             faceDetection: nil,
             barcodes: nil,
             objects: nil,

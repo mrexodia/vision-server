@@ -211,7 +211,14 @@ final class VisionServerHandler: ChannelInboundHandler {
                 "type": "array",
                 "items": {
                   "$ref": "#/components/schemas/TextObservation"
-                }
+                },
+                "description": "Array of individual text observations with bounding boxes and confidence scores"
+              },
+              "fullText": {
+                "type": "string",
+                "nullable": true,
+                "description": "All recognized text ordered in natural reading order (top-to-bottom, left-to-right) with newlines preserved. Returns null if no text was detected. This is generated from textRecognition by sorting observations spatially.",
+                "example": "First line of text\\nSecond line of text\\n\\nNew paragraph"
               },
               "faceDetection": {
                 "type": "array",

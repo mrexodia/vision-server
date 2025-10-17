@@ -5,6 +5,8 @@ A pure HTTP API server for macOS that analyzes images using Apple's Vision frame
 ## Features
 
 - **Text Recognition** - Supports 18 languages (English, Chinese, French, German, Spanish, Portuguese, Russian, Ukrainian, Korean, Japanese, Arabic, Hebrew, Thai, Vietnamese, and more)
+  - Individual text observations with bounding boxes and confidence scores
+  - **Full Text** - Automatically orders all recognized text in natural reading order (top-to-bottom, left-to-right) with newlines and paragraph breaks preserved
 - **Face Detection** - Detects faces with landmarks (eyes, nose, mouth, eyebrows, face contour)
 - **Barcode & QR Code Detection** - Supports QR, Code 128, Code 39, EAN-13, UPC-E, PDF417, Aztec, and more
 - **Object Classification** - Identifies objects in images using Vision's built-in models
@@ -148,6 +150,7 @@ curl -X POST \
       ]
     }
   ],
+  "fullText": "Hello World\n\nThis is a second paragraph.",
   "faceDetection": [
     {
       "boundingBox": {
@@ -192,6 +195,27 @@ curl -X POST \
 ```
 
 **Note:** All coordinates use normalized values (0.0 to 1.0) where (0, 0) is the bottom-left corner and (1, 1) is the top-right corner.
+
+### About Full Text Ordering
+
+The `fullText` field provides all recognized text in natural reading order, similar to the "Copy Text" feature on iPhone/macOS. This is **not** provided by Apple's Vision API directly - it's implemented using a custom algorithm that:
+
+1. **Groups text into lines** - Text observations with similar Y-coordinates are grouped together
+2. **Orders lines top-to-bottom** - Lines are sorted from top of the image to bottom
+3. **Orders text within lines left-to-right** - Text in each line is sorted horizontally
+4. **Detects paragraph breaks** - Larger vertical gaps between lines are interpreted as paragraph breaks (double newline)
+5. **Preserves line breaks** - Regular line breaks use single newlines
+
+This makes it easy to extract readable text from documents, screenshots, or photos without having to manually parse the `textRecognition` array and sort observations by their bounding boxes.
+
+**Example:**
+```bash
+# Get just the ordered full text from an image
+curl -X POST \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @document.jpg \
+  http://localhost:8080/analyze | jq -r '.fullText'
+```
 
 ## Example Usage
 

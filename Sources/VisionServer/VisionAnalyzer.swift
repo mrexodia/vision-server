@@ -24,6 +24,7 @@ class VisionAnalyzer {
 
         // Perform all analyses
         let textRecognition = try recognizeText(in: cgImage)
+        let fullText = textRecognition.isEmpty ? nil : orderTextObservations(textRecognition)
         let faceDetection = try detectFaces(in: cgImage)
         let barcodes = try detectBarcodes(in: cgImage)
         let objects = try classifyImage(cgImage)
@@ -33,6 +34,7 @@ class VisionAnalyzer {
         return AnalysisResponse.success(
             imageInfo: imageInfo,
             textRecognition: textRecognition,
+            fullText: fullText,
             faceDetection: faceDetection,
             barcodes: barcodes,
             objects: objects,
@@ -61,6 +63,82 @@ class VisionAnalyzer {
         }
 
         return observations.compactMap { $0.toResult() }
+    }
+
+    // MARK: - Text Ordering
+
+    private func orderTextObservations(_ observations: [TextObservationResult]) -> String {
+        guard !observations.isEmpty else { return "" }
+
+        // Group observations into lines based on vertical proximity
+        // Note: Vision coordinates have origin at bottom-left, so higher Y = higher on page
+        let sortedByY = observations.sorted { $0.boundingBox.y > $1.boundingBox.y }
+
+        var lines: [[TextObservationResult]] = []
+        var currentLine: [TextObservationResult] = []
+        var lastY: Float?
+
+        for observation in sortedByY {
+            let currentY = observation.boundingBox.y
+            let height = observation.boundingBox.height
+
+            if let prevY = lastY {
+                // Check if this observation is on a new line
+                // Consider it a new line if vertical distance is more than half the height
+                let verticalDistance = abs(prevY - currentY)
+                if verticalDistance > height * 0.5 {
+                    // Start a new line
+                    if !currentLine.isEmpty {
+                        lines.append(currentLine)
+                    }
+                    currentLine = [observation]
+                } else {
+                    // Same line
+                    currentLine.append(observation)
+                }
+            } else {
+                // First observation
+                currentLine.append(observation)
+            }
+
+            lastY = currentY
+        }
+
+        // Don't forget the last line
+        if !currentLine.isEmpty {
+            lines.append(currentLine)
+        }
+
+        // Sort each line left-to-right and build the full text
+        var result = ""
+        var previousLineY: Float?
+
+        for line in lines {
+            // Sort left to right
+            let sortedLine = line.sorted { $0.boundingBox.x < $1.boundingBox.x }
+
+            // Check if we need a paragraph break (larger vertical gap)
+            if let prevY = previousLineY {
+                let currentY = sortedLine.first?.boundingBox.y ?? 0
+                let avgHeight = sortedLine.first?.boundingBox.height ?? 0.05
+                let verticalGap = abs(prevY - currentY)
+
+                // If gap is more than 1.5x the average height, consider it a paragraph break
+                if verticalGap > avgHeight * 1.5 {
+                    result += "\n\n"
+                } else {
+                    result += "\n"
+                }
+            }
+
+            // Join text in the line with spaces
+            let lineText = sortedLine.map { $0.text }.joined(separator: " ")
+            result += lineText
+
+            previousLineY = sortedLine.first?.boundingBox.y
+        }
+
+        return result
     }
 
     // MARK: - Face Detection
